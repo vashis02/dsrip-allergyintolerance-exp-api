@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:redis="http://www.mulesoft.org/schema/mule/redis"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/redis http://www.mulesoft.org/schema/mule/redis/current/mule-redis.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+	<flow name="get-allergyintolerance-impl-flow" doc:id="621182ec-e83f-47bc-a3be-ef398533d756" >
+				<ee:transform doc:name="set-variables" doc:id="7a661e0f-8267-4731-b04e-393a39b76e31" >
+			<ee:variables >
+				<ee:set-variable resource="dwl/correlationId.dwl" variableName="correlationId" />
+				<ee:set-variable resource="dwl/startTime.dwl" variableName="startTime" />
+				<ee:set-variable resource="dwl/apiName.dwl" variableName="apiName" />
+				<ee:set-variable resource="dwl/clientId.dwl" variableName="clientId" />
+				<ee:set-variable resource="dwl/msmrn.dwl" variableName="msmrn" />
+			</ee:variables>
+		</ee:transform>
+		<logger level="INFO" doc:name="entry-logger" doc:id="8cfbe5e6-3908-43ea-942f-383d17f1c853" message="#['AllergyIntolerance EXP-API Entry ' 
+++ write({
+	&quot;SVC_ID&quot;: vars.rediskey,
+	&quot;Correlation ID &quot;: vars.correlationId,
+	&quot;Start Time&quot;: vars.startTime
+}, &quot;application/java&quot;)]"/>
+		<flow-ref doc:name="key-builder_Sub-Flow" doc:id="6319ff10-138d-4adf-9f95-f5e42bc832fd" name="key-builder_Sub-Flow"/>
+		<redis:exists doc:name="redis-key-exists" doc:id="94e30d88-ec79-4242-a04d-abcce081457c" config-ref="Redis_Configuration" key="#[vars.rediskey]" target="exists"/>
+		<logger level="INFO" doc:name="log-rediskey-message" doc:id="9aaa4a30-aadf-4fd8-94bc-80420266fe6e" message="#['Does ' ++ vars.rediskey ++ ' exist? ' ++ vars.exists]"/>
+		<choice doc:name="choice-rediskey" doc:id="4c36ca7f-feef-40d2-839c-f98f919edc42" >
+			<when expression="#[vars.exists]">
+				<logger level="INFO" doc:name="log-exists-message" doc:id="7e5a074d-7e49-41b9-b704-9886c1d216ea" message="Have the Key so getting from Cache"/>
+				<redis:get doc:name="get-rediskey" doc:id="0623106a-0afe-4e0b-808e-36c5503654e8" config-ref="Redis_Configuration" key="#[vars.rediskey]"/>
+			</when>
+			<otherwise >
+				<flow-ref doc:name="Invoke_AllergyInt_SystemAPI_Flow_Ref" doc:id="09f8598a-0c12-4875-a68b-7b47729fa154" name="Invoke_AllergyInt_SystemAPI_Flow"/>
+				<logger level="INFO" doc:name="Logger" doc:id="627384c2-e311-47cb-9177-ed5bfbebb408" message="Before Redis"/>
+				<redis:set doc:name="redis-set" doc:id="7d359cd9-5745-4212-a81f-83fbc659b97f" config-ref="Redis_Configuration" target="redis" key="#[vars.rediskey]" expire="${cache.expire}"/>
+			</otherwise>
+		</choice>
+		<async doc:name="Async" doc:id="a679e874-2305-4c4a-868f-e3670c7ec0e0" >
+			<flow-ref doc:name="DSRIP_Audit_Log_UtilFlow" doc:id="350e1dc8-b8d7-478b-a853-438913edfc89" name="DSRIP_Audit_Log_UtilFlow" />
+		</async>
+		<logger level="INFO" doc:name="exit-logger" doc:id="23df47a1-b418-4062-a95e-41a61908ee1b" message="#['Clinical Impression EXP-API Exit '
+++ 
+write({
+	&quot;SVC_ID&quot;:	vars.rediskey,
+	&quot;Correlation ID&quot;:	vars.correlationId,
+	&quot;End Time&quot;: now().nanoseconds,
+	&quot;Total Processing Time &quot;:	((now().nanoseconds - vars.startTime) / 1000000) ++ 'milli sec' 
+}, &quot;application/java&quot;)]"/>
+		<error-handler >
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="9cb26d00-a17e-4537-b5cc-fe1fc5a3162d" type="REDIS:CONNECTIVITY, REDIS:INVALID_REQUEST_DATA, REDIS:INVALID_STRUCTURE_FOR_INPUT_DATA, REDIS:RETRY_EXHAUSTED, REDIS:UNABLE_TO_UNSUBSCRIBE, REDIS:UNKNOWN">
+				<logger level="INFO" doc:name="exception-logger" doc:id="c3078eab-1573-490e-8553-d106985fa831" message="Redis connectivity failed. Proceeding with System API invocation."/>
+				<flow-ref doc:name="Invoke_AllergyInt_SystemAPI_Flow" doc:id="5eadc139-e1e2-44b6-9093-21f11f8b4302" name="Invoke_AllergyInt_SystemAPI_Flow"/>
+			</on-error-continue>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="ce7c9516-a151-4ddc-a8ef-9100bcc02ad1" type="EXPRESSION, STREAM_MAXIMUM_SIZE_EXCEEDED">
+				<logger level="INFO" doc:name="Logger" doc:id="2da7bef9-e9f3-4ca9-81e8-f0d0bcc43094" message="Error Occurred"/>
+			</on-error-propagate>
+		</error-handler>
+	
+</flow>
+	<flow name="Invoke_AllergyInt_SystemAPI_Flow" doc:id="ad0bd891-41d9-4a3a-957b-885da1abfb34" >
+		<choice doc:name="Choice" doc:id="8f316b06-3bfd-45ed-83d4-3088ddbd8105" >
+			<when doc:id="994c1a53-9919-417c-9773-8b2cb2df5105" expression="#[(vars.clientId == p('apiconnect.clientid')) or 
+(vars.clientId == p('basicapp.clientid')) or 
+(vars.clientId == p('apiconnect.mask.clientid')) or 
+(vars.clientId == p('pat360.clientid'))]">
+				<logger level="INFO" doc:name="Logger" doc:id="699433f3-e247-4ee1-8241-dd8b7f62b46b" message="Mapping for ApiConnect"/>
+				<http:request method="GET" doc:name="https-rc_SYS_Request" doc:id="26abeaff-3b7b-409f-834b-413f8ad2f382" config-ref="https-rc_SYS" path="/System/PAT360/AllergyIntolerance">
+					<http:headers ><![CDATA[#[output application/java
+---
+{
+	"client_id" : vars.clientId,
+	"correlation_Id" : vars.correlationId
+}]]]></http:headers>
+					<http:query-params ><![CDATA[#[output application/java
+---
+{
+	"Key" : "Value"
+}]]]></http:query-params>
+				</http:request>
+				<ee:transform doc:name="Transform Message" doc:id="f9101a3b-eac1-4823-8ea6-cf8b4bc40c98" >
+					<ee:message >
+						<ee:set-payload resource="dwl/AllergyIntolerance-apiconnect-mapping-new.dwl" />
+					</ee:message>
+				</ee:transform>
+			</when>
+			<when expression="#[(vars.clientId == p('sema4.clientid')) or (vars.clientId == p('sema4.NonBasic.clientid'))]">
+				<logger level="INFO" doc:name="Logger" doc:id="4e7cb9bb-a877-4cfa-a766-7aa28e3cebb6" message="Mapping for Sema4"/>
+				<http:request method="GET" doc:name="Request" doc:id="456701ba-c36a-4f5b-bcb8-af7964347574" config-ref="https-rc_SYS" path="/System/SEMA4/AllergyIntolerance">
+					<http:headers ><![CDATA[#[output application/java
+---
+{
+	"client_id" : vars.clientId,
+	"correlation_Id" : vars.correlationId
+}]]]></http:headers>
+					<http:query-params ><![CDATA[#[output application/java
+---
+{
+	"Key" : "Value"
+}]]]></http:query-params>
+				</http:request>
+				<ee:transform doc:name="Transform Message" doc:id="d8d41e78-3e58-4a28-b02b-72974ff50fec" >
+					<ee:message >
+						<ee:set-payload resource="dwl/allergyIntolerance-sema4-mapping.dwl" />
+					</ee:message>
+				</ee:transform>
+			</when>
+			<when expression="#[Vars.clientId == p('oscar.clientid')]">
+				<logger level="INFO" doc:name="Logger" doc:id="261da8c3-6aa4-4731-ab41-b254bb85e1aa" message="Mapping for OSCAR"/>
+				<http:request method="GET" doc:name="Request" doc:id="275591f4-4957-4464-8151-881ca2e1a0b0" config-ref="https-rc_SYS" path="/System/PEP/AllergyIntolerance">
+					<http:headers ><![CDATA[#[output application/java
+---
+{
+	"client_id" : vars.clientId,
+	"correlation_Id" : vars.correlationId
+}]]]></http:headers>
+					<http:query-params ><![CDATA[#[output application/java
+---
+{
+	"Key" : "Value"
+}]]]></http:query-params>
+				</http:request>
+				<ee:transform doc:name="Transform Message" doc:id="ff0924f9-1474-433f-a999-d5fb977f84bb" >
+					<ee:message >
+						<ee:set-payload resource="dwl/allergyIntolerance-oscar-mapping.dwl" />
+					</ee:message>
+				</ee:transform>
+			</when>
+			<when expression="#[vars.clientId == p('oscar.mask.clientid')]">
+				<logger level="INFO" doc:name="Logger" doc:id="651121af-954b-4a52-bb84-874a79a9701f" message="Masked Mapping for OSCAR"/>
+				<http:request method="GET" doc:name="Request" doc:id="22da86a8-20e6-4b73-b8e8-e376749ce28f" config-ref="https-rc_SYS" path="/System/PEP/AllergyIntolerance">
+					<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Key" : "Value"
+}]]]></http:headers>
+					<http:query-params ><![CDATA[#[output application/java
+---
+{
+	"Key" : "Value"
+}]]]></http:query-params>
+				</http:request>
+				<ee:transform doc:name="Transform Message" doc:id="1e925e27-a6db-4e39-bfae-4c3b7a1d1a55">
+					<ee:message>
+						<ee:set-payload resource="dwl/allergyIntolerance-oscar-mapping-masked.dwl" />
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Logger" doc:id="c7c1f9a0-8060-41bc-8d2f-f9e9c0d22f73" message="Invalid clientId received!!!"/>
+				<ee:transform doc:name="Transform Message" doc:id="bf641c3c-abd3-4c83-901b-333026217746" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{ 
+	status: "400", 
+	message: message.attributes.reasonPhrase
+}]]></ee:set-payload>
+					</ee:message>
+					<ee:variables >
+						<ee:set-variable variableName="reasonPhrase" ><![CDATA[%dw 2.0
+output application/java
+---
+'Invalid ClientID']]></ee:set-variable>
+						<ee:set-variable variableName="statusCode" ><![CDATA[400]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="f8ee3df2-e9b3-4571-bc34-8d2c411d1314" type="HTTP:BAD_REQUEST, HTTP:CLIENT_SECURITY, HTTP:CONNECTIVITY, HTTP:FORBIDDEN, HTTP:INTERNAL_SERVER_ERROR, HTTP:METHOD_NOT_ALLOWED, HTTP:NOT_ACCEPTABLE, HTTP:NOT_FOUND, HTTP:PARSING, HTTP:RETRY_EXHAUSTED, HTTP:SECURITY, HTTP:SERVICE_UNAVAILABLE, HTTP:TIMEOUT, HTTP:TOO_MANY_REQUESTS, HTTP:UNAUTHORIZED, HTTP:UNSUPPORTED_MEDIA_TYPE">
+				<logger level="INFO" doc:name="Logger" doc:id="85f57fd5-4ed1-4065-8118-1c214a8506c9" message="Status Code Validation Exception Occured in AllergyIntolerance EXP API"/>
+				<ee:transform doc:name="Transform Message" doc:id="96ab9006-d34e-4788-aab9-de609e32db55" >
+					<ee:message >
+					</ee:message>
+					<ee:variables >
+						<ee:set-variable variableName="statusCode" ><![CDATA[%dw 2.0
+output application/java
+---
+message.attributes.statusCode]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+			</on-error-continue>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="25050357-31b6-4c52-be1b-37059bcd52d3" type="EXPRESSION, STREAM_MAXIMUM_SIZE_EXCEEDED">
+				<logger level="INFO" doc:name="Logger" doc:id="637010ba-fa29-4301-8dce-77bbda45586a" message="Error occurred"/>
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+</mule>

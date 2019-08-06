@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+    
+    <flow name="allergyintolerance-exp-api-main">
+        <http:listener config-ref="allergyintolerance-exp-api-httpListenerConfig" path="/api/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <ee:transform doc:name="Transform Message" doc:id="4bef99a5-af35-441c-98da-0f3f29d0a8ef" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+message.attributes.queryParams pluck $]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<apikit:router config-ref="allergyintolerance-exp-api-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:BAD_REQUEST">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Bad request"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">400</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Resource not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">404</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:METHOD_NOT_ALLOWED">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Method not allowed"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">405</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_ACCEPTABLE">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Not acceptable"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">406</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:UNSUPPORTED_MEDIA_TYPE">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Unsupported media type"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">415</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_IMPLEMENTED">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Not Implemented"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">501</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="allergyintolerance-exp-api-console">
+        <http:listener config-ref="allergyintolerance-exp-api-httpListenerConfig" path="/console/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:console config-ref="allergyintolerance-exp-api-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Resource not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">404</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+
+    <flow name="put:\AllergyIntolerance:allergyintolerance-exp-api-config">
+        <logger level="INFO" message="put:\AllergyIntolerance:allergyintolerance-exp-api-config" />
+    </flow>
+    <flow name="put:\AllergyIntolerance\(id):application\json:allergyintolerance-exp-api-config">
+        <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" doc:id="c64862b1-04a0-4b7c-840e-7c26779bed08">
+            <ee:variables>
+                <ee:set-variable variableName="id"><![CDATA[attributes.uriParams.id]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <logger level="INFO" message="put:\AllergyIntolerance\(id):application\json:allergyintolerance-exp-api-config" />
+    </flow>
+    <flow name="delete:\AllergyIntolerance:allergyintolerance-exp-api-config">
+        <logger level="INFO" message="delete:\AllergyIntolerance:allergyintolerance-exp-api-config" />
+    </flow>
+    <flow name="delete:\AllergyIntolerance\(id):allergyintolerance-exp-api-config">
+        <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" doc:id="c1b0950b-3087-48f5-b300-9afc60e5ac1b">
+            <ee:variables>
+                <ee:set-variable variableName="id"><![CDATA[attributes.uriParams.id]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <logger level="INFO" message="delete:\AllergyIntolerance\(id):allergyintolerance-exp-api-config" />
+    </flow>
+    <flow name="get:\AllergyIntolerance:allergyintolerance-exp-api-config">
+		<flow-ref doc:name="get-allergyintolerance-impl-flow-ref" doc:id="cd16c7ee-fcee-4fec-9c43-1a5d37e285de" name="get-allergyintolerance-impl-flow"/>
+    </flow>
+    <flow name="get:\AllergyIntolerance\(id)\_history:allergyintolerance-exp-api-config">
+        <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" doc:id="a3b2ec85-5584-4f4e-8bb6-6c72fb3ef907">
+            <ee:variables>
+                <ee:set-variable variableName="id"><![CDATA[attributes.uriParams.id]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <logger level="INFO" message="get:\AllergyIntolerance\(id)\_history:allergyintolerance-exp-api-config" />
+    </flow>
+    <flow name="get:\AllergyIntolerance\_history:allergyintolerance-exp-api-config">
+        <logger level="INFO" message="get:\AllergyIntolerance\_history:allergyintolerance-exp-api-config" />
+    </flow>
+    <flow name="get:\AllergyIntolerance\_search:allergyintolerance-exp-api-config">
+        <logger level="INFO" message="get:\AllergyIntolerance\_search:allergyintolerance-exp-api-config" />
+    </flow>
+    <flow name="get:\AllergyIntolerance\(id):allergyintolerance-exp-api-config">
+        <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" doc:id="8337a2ac-db4e-4ac2-91b4-d9da45ce43e3">
+            <ee:variables>
+                <ee:set-variable variableName="id"><![CDATA[attributes.uriParams.id]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd" doc:id="d153eb0f-a18d-4419-8e7f-088ff320cd77">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  resourceType: "AllergyIntolerance",
+  id: "1",
+  patient: {
+    reference: "Patient/9"
+  },
+  reporter: {
+    reference: "Patient/9"
+  },
+  substance: {
+    coding: [
+      {
+        display: "Peanuts"
+      }
+    ]
+  },
+  recordedDate: "2016-05-11",
+  status: "confirmed"
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+    <flow name="get:\AllergyIntolerance\(id)\_history\(vid):allergyintolerance-exp-api-config">
+        <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" doc:id="164ca628-1776-4f02-804b-bf66e91f9a88">
+            <ee:variables>
+                <ee:set-variable variableName="id"><![CDATA[attributes.uriParams.id]]></ee:set-variable>
+                <ee:set-variable variableName="vid"><![CDATA[attributes.uriParams.vid]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <logger level="INFO" message="get:\AllergyIntolerance\(id)\_history\(vid):allergyintolerance-exp-api-config" />
+    </flow>
+    <flow name="post:\AllergyIntolerance:application\json:allergyintolerance-exp-api-config">
+        <logger level="INFO" message="post:\AllergyIntolerance:application\json:allergyintolerance-exp-api-config" />
+    </flow>
+    <flow name="post:\AllergyIntolerance\_search:application\x-www-form-urlencoded:allergyintolerance-exp-api-config">
+        <logger level="INFO" message="post:\AllergyIntolerance\_search:application\x-www-form-urlencoded:allergyintolerance-exp-api-config" />
+    </flow>
+</mule>

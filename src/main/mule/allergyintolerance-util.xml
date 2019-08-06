@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<sub-flow name="key-builder_Sub-Flow" doc:id="980166ba-5760-4b89-a842-b433f677c977" >
+		<ee:transform doc:name="Build Redis Key" doc:id="6bdd8a23-dc5f-4f65-9e2e-e15795206982" >
+			<ee:variables >
+				<ee:set-variable variableName="rediskey" ><![CDATA[%dw 2.0
+output application/java
+var specialChar= '-'
+var getClientId=
+if(vars.clientId == (p('pat360.clientid')))
+	'PAT360'
+else if(vars.clientId == (p('apiconnect.clientid')))
+	'APICONNECT'
+else if(vars.clientId == (p('basicapp.clientid')))
+	'BASIC'
+else if(vars.clientId == (p('sema4.clientid')))
+	'SEMA4'
+else if(vars.clientId == (p('oscar.clientid')))
+	'OSCAR'
+else if(vars.clientId == (p('oscar.mask.clientid')))
+	'OSCAR-MASK'
+else if(vars.clientId == (p('sema4.NonBasic.clientid')))
+	'SEMA4NONBASIC'		
+else
+	''
+---
+([(vars.apiName default ''), p('mule.env'),  getClientId] ++ (message.attributes.queryParams pluck $)) joinBy specialChar
+]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="1f19c4aa-5318-48d5-a3e1-b16efd5e640b" message="Create Redis Key #[vars.rediskey]"/>
+	</sub-flow>
+	<flow name="DSRIP_Audit_Log_UtilFlow" doc:id="49aa897b-0da2-4cbc-8e5e-71cc6187bb73" >
+		<logger level="INFO" doc:name="Logger" doc:id="811cf764-3d98-4608-b32c-d2c75912ef49" message="Audit log flow started asynchronously"/>
+		<choice doc:name="Choice" doc:id="c9ff3cec-f8c4-43c8-be2c-7a48b6d5211d" >
+			<when expression="#[vars.clientId == p('sema4.clientid')]">
+				<logger level="INFO" doc:name="Logger" doc:id="d605d69b-447f-4d39-b2a3-93b7ace18ed7" message="#['Insert Query for Audit: ' ++ write(payload, &quot;application/java&quot;)]"/>
+				<db:insert doc:name="Sema4_Insert" doc:id="ead8d1dd-ac4f-43ca-8ed4-f62aac85d683" config-ref="Database_Config">
+					<db:sql >INSERT INTO AUDIT_LOG (MEDICAL_RECORD_NUMBER, SUBJECT_AREA, DATE_TIME, ENVIRONMENT, CONSUMER_NAME, CORRELATION_ID) VALUES(
+:msmrn, :apiName, CURRENT_TIMESTAMP, :environment, :clientId, :correlationId)</db:sql>
+					<db:input-parameters ><![CDATA[#[%dw 2.0
+output application/java
+var getClientId = 
+if(vars.clientId == p('pat360.clientid'))
+	'PAT360'
+else if (vars.clientId == p('apiconnect.clientid'))
+	'APICONNECT'
+else if (vars.clientId == p('basicapp.clientid'))
+	'BASIC'
+else if (vars.clientId == p('sema4.clientid'))
+	'SEMA4'
+else
+	'UNKNOWN'
+---
+{
+	msmrn: vars.msmrn,
+	apiName: vars.apiName,
+	environment: p('mule.env'),
+	clientId: getClientId,
+	correlationId: vars.correlationId
+}]]]></db:input-parameters>
+				</db:insert>
+				<logger level="INFO" doc:name="Logger" doc:id="691c5f9e-459e-4941-ae36-145378bc0961" message="Audit log flow finished succesfully"/>
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Logger" doc:id="528e02dd-faa2-42ee-9e59-d919c6252049" message="Client is not SEMA4. Avoiding the Audit log functionality"/>
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="174c3f3c-cfba-443a-b335-6fc889de67d1" >
+				<logger level="INFO" doc:name="Logger" doc:id="ee2b1257-56c0-465b-85ff-94d40bbf29f3" message="#['Exception while performing Audit logging. ' ++ error.description]"/>
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+</mule>
